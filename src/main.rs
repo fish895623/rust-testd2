@@ -20,6 +20,7 @@ const MAX_SIZE: usize = 262_144;
 async fn index_manual(mut payload: web::Payload) -> Result<HttpResponse, Error> {
     let mut body = web::BytesMut::new();
     while let Some(chunk) = payload.next().await {
+        println!("Chunk: {:?}", chunk);
         let chunk = chunk?;
         if (body.len() + chunk.len()) > MAX_SIZE {
             return Err(error::ErrorBadRequest("overflow"));
