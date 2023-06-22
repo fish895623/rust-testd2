@@ -20,7 +20,6 @@ const MAX_SIZE: usize = 262_144;
 async fn index_manual(mut payload: web::Payload) -> Result<HttpResponse, Error> {
     let mut body = web::BytesMut::new();
     while let Some(chunk) = payload.next().await {
-        println!("Chunk: {:?}", chunk);
         let chunk = chunk?;
         if (body.len() + chunk.len()) > MAX_SIZE {
             return Err(error::ErrorBadRequest("overflow"));
@@ -28,9 +27,10 @@ async fn index_manual(mut payload: web::Payload) -> Result<HttpResponse, Error> 
         body.extend_from_slice(&chunk);
     }
 
-    let obj = serde_json::from_slice::<MyObj>(&body)?;
+    let obj = serde_json::from_slice::<Vec<MyObj>>(&body)?;
     Ok(HttpResponse::Ok().json(obj))
 }
+
 #[post("/echo")]
 async fn echo(req_body: String) -> impl Responder {
     HttpResponse::Ok().body(req_body)
@@ -39,6 +39,7 @@ async fn echo(req_body: String) -> impl Responder {
 async fn manual_hello() -> impl Responder {
     HttpResponse::Ok().body("Hey there!")
 }
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     let port;
@@ -57,7 +58,7 @@ async fn main() -> std::io::Result<()> {
             .service(index_manual)
             .route("/hey", web::get().to(manual_hello))
     })
-    .bind(("0.0.0.0", port))?
-    .run()
-    .await
+        .bind(("0.0.0.0", port))?
+        .run()
+        .await
 }
