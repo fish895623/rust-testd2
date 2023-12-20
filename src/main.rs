@@ -1,5 +1,4 @@
-use actix_web::{error, get, post, web, App, Error, HttpResponse, HttpServer, Responder};
-use futures::StreamExt;
+use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder, Result};
 use serde;
 use std::env;
 
@@ -9,35 +8,26 @@ async fn hello() -> impl Responder {
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
-struct MyObj {
+pub struct MyObj {
     name: String,
     number: i32,
 }
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct Info {
+    name: String,
+}
 
-const MAX_SIZE: usize = 262_144;
-
-#[post("/hello")]
-async fn index_manual(mut payload: web::Payload) -> Result<HttpResponse, Error> {
-    let mut body = web::BytesMut::new();
-    while let Some(chunk) = payload.next().await {
-        let chunk = chunk?;
-        if (body.len() + chunk.len()) > MAX_SIZE {
-            return Err(error::ErrorBadRequest("overflow"));
-        }
-        body.extend_from_slice(&chunk);
-    }
-
-    let obj = serde_json::from_slice::<Vec<MyObj>>(&body)?;
-    Ok(HttpResponse::Ok().json(obj))
+#[post("/api/hello")]
+async fn index_manual(name: web::Json<Info>) -> Result<impl Responder> {
+    let obj = Info {
+        name: name.name.clone(),
+    };
+    Ok(web::Json(obj))
 }
 
 #[post("/echo")]
 async fn echo(req_body: String) -> impl Responder {
     HttpResponse::Ok().body(req_body)
-}
-
-async fn manual_hello() -> impl Responder {
-    HttpResponse::Ok().body("Hey there!")
 }
 
 #[actix_web::main]
@@ -56,9 +46,21 @@ async fn main() -> std::io::Result<()> {
             .service(hello)
             .service(echo)
             .service(index_manual)
-            .route("/hey", web::get().to(manual_hello))
     })
-        .bind(("0.0.0.0", port))?
-        .run()
-        .await
+    .bind(("0.0.0.0", port))?
+    .run()
+    .await
+}
+#[cfg(test)]
+mod test {
+    use super::*;
+    use actix_web::{http, test, App};
+
+    #[actix_web::test]
+    async fn test_index() {
+        let mut app = test::init_service(App::new().service(hello)).await;
+        let req = test::TestRequest::get().uri("/").to_request();
+        let resp = test::call_service(&mut app, req).await;
+        assert_eq!(resp.status(), http::StatusCode::OK);
+    }
 }
